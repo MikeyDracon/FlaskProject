@@ -9,7 +9,6 @@ Agrega las siguientes líneas en app.py:
 python
 
 from flask_migrate import Migrate
-
 # ... después de inicializar db y app ...
 
 migrate = Migrate(app, db)
