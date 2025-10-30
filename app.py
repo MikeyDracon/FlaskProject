@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_file, flash, redirect, url_for
+from flask import Flask, render_template, request, jsonify, send_file, flash, redirect, url_for, session
 from flask_migrate import Migrate
 import random
 import os
@@ -13,6 +13,7 @@ from PIL import Image
 
 # Importar configuración
 from Config.config import config
+from registro.auth import registration_manager
 
 # Importar módulos
 from registro.models.database import init_db, db
@@ -44,6 +45,27 @@ migrate = Migrate(app, db)
 usuario_view = UsuarioView()
 turno_view = TurnoView()
 session_manager = SessionManager()
+
+
+@app.before_request
+def check_authentication():
+    """Verificar autenticación antes de cada request"""
+    # Rutas que NO requieren autenticación
+    public_routes = [
+        'login', 'logout', 'publico', 'generar_turno',
+        'descargar_pdf', 'static', 'index'
+    ]
+
+    # Si la ruta actual no es pública y el usuario no está logueado
+    if request.endpoint and request.endpoint not in public_routes:
+        if not session_manager.is_logged_in():
+            # Si es una ruta administrativa, redirigir al login
+            if request.endpoint and 'admin' in request.endpoint:
+                return redirect(url_for('login'))
+
+    # Actualizar última actividad para sesiones activas
+    if session_manager.is_logged_in():
+        session['last_activity'] = datetime.now().isoformat()
 
 
 # =============================================================================
@@ -271,13 +293,146 @@ def generate_captcha():
 
 
 # =============================================================================
+# RUTAS DE REGISTRO DE ADMINISTRADORES
+# =============================================================================
+
+@app.route('/admin/register', methods=['GET', 'POST'])
+def register_admin():
+    """Registro de nuevo administrador"""
+    # Si ya está logueado, redirigir al dashboard
+    if session_manager.is_logged_in():
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        try:
+            data = request.form
+            registration_code = data.get('registration_code', '').strip().upper()
+            username = data.get('username', '').strip()
+            email = data.get('email', '').strip().lower()
+            password = data.get('password', '')
+            confirm_password = data.get('confirm_password', '')
+            nombre_completo = data.get('nombre_completo', '').strip()
+
+            # Validar código de registro
+            is_valid, code_message = registration_manager.validate_registration_code(registration_code)
+            if not is_valid:
+                flash(f'Error en código de registro: {code_message}', 'error')
+                return render_template('register.html')
+
+            # Validar que las contraseñas coincidan
+            if password != confirm_password:
+                flash('Las contraseñas no coinciden', 'error')
+                return render_template('register.html')
+
+            # Validar username
+            is_valid_username, username_msg = Administrador.validate_username(username)
+            if not is_valid_username:
+                flash(f'Error en usuario: {username_msg}', 'error')
+                return render_template('register.html')
+
+            # Validar email
+            is_valid_email, email_msg = Administrador.validate_email(email)
+            if not is_valid_email:
+                flash(f'Error en email: {email_msg}', 'error')
+                return render_template('register.html')
+
+            # Verificar si el usuario ya existe
+            if Administrador.query.filter_by(username=username).first():
+                flash('Este nombre de usuario ya está en uso', 'error')
+                return render_template('register.html')
+
+            if Administrador.query.filter_by(email=email).first():
+                flash('Este correo electrónico ya está registrado', 'error')
+                return render_template('register.html')
+
+            # Crear nuevo administrador
+            nuevo_admin = Administrador(
+                username=username,
+                email=email,
+                nombre_completo=nombre_completo,
+                rol='operador'  # Por defecto, rol operador
+            )
+            nuevo_admin.set_password(password)
+
+            db.session.add(nuevo_admin)
+
+            # Marcar código como utilizado
+            registration_manager.mark_code_used(registration_code)
+
+            db.session.commit()
+
+            flash('✅ Cuenta de administrador creada exitosamente. Ahora puedes iniciar sesión.', 'success')
+            return redirect(url_for('login'))
+
+        except ValueError as e:
+            flash(f'Error: {str(e)}', 'error')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al crear la cuenta: {str(e)}', 'error')
+
+    return render_template('register.html')
+
+
+@app.route('/admin/generate-code')
+@login_required
+def generate_registration_code():
+    """Generar código de registro (solo para administradores logueados)"""
+    try:
+        code = registration_manager.generate_registration_code()
+
+        # Log de quién generó el código
+        admin_username = session_manager.get_admin_username()
+        print(f"Código generado por {admin_username}: {code}")
+
+        return jsonify({
+            'success': True,
+            'code': code,
+            'message': f'Código generado: {code} - Válido por 24 horas'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/admin/active-codes')
+@login_required
+def get_active_codes():
+    """Obtener códigos activos (solo para administradores)"""
+    active_codes = registration_manager.get_active_codes()
+    return jsonify({
+        'success': True,
+        'active_codes': len(active_codes),
+        'codes': active_codes
+    })
+
+
+# =============================================================================
 # RUTAS PÚBLICAS
 # =============================================================================
 
 @app.route('/')
 def index():
-    return render_template('formulario.html')
+    """Página principal - Redirige según sesión activa"""
+    if session_manager.is_logged_in():
+        return redirect(url_for('dashboard'))
+    else:
+        return redirect(url_for('login'))
 
+@app.route('/publico')
+def publico():
+    """Formulario público - Siempre accesible"""
+    is_logged_in = session_manager.is_logged_in()
+    admin_username = session_manager.get_admin_username() if is_logged_in else None
+    return render_template('formulario.html',
+                         is_logged_in=is_logged_in,
+                         admin_username=admin_username)
+
+@app.route('/admin')
+def admin_redirect():
+    """Redirección para /admin"""
+    if session_manager.is_logged_in():
+        return redirect(url_for('dashboard'))
+    else:
+        return redirect(url_for('login'))
 
 @app.route('/generar_turno', methods=['POST'])
 def generar_turno():
@@ -434,8 +589,10 @@ def login():
 
 @app.route('/admin/logout')
 def logout():
+    """Cerrar sesión y redirigir adecuadamente"""
+    username = session_manager.get_admin_username()
     session_manager.logout_admin()
-    flash('Sesión cerrada correctamente')
+    flash(f'Sesión cerrada correctamente. Hasta pronto {username}!', 'info')
     return redirect(url_for('login'))
 
 

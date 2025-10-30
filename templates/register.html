@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Administrador - Sistema de Turnos</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .register-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .register-card {
+            background: white;
+            padding: 2rem;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            width: 100%;
+            max-width: 450px;
+        }
+        .password-strength {
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+        }
+        .strength-weak { color: #e74c3c; }
+        .strength-medium { color: #f39c12; }
+        .strength-strong { color: #27ae60; }
+        .code-help {
+            background: #e8f4fd;
+            padding: 0.75rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="register-container">
+        <div class="register-card">
+            <div class="header text-center">
+                <h1>👤 Crear Cuenta de Administrador</h1>
+                <p>Registro para nuevo personal administrativo</p>
+            </div>
+
+            <!-- Mostrar mensajes flash -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}"
+                             style="background: {% if category == 'error' %}#f8d7da{% else %}#d1ecf1{% endif %};
+                                    color: {% if category == 'error' %}#721c24{% else %}#0c5460{% endif %};
+                                    padding: 10px; border-radius: 4px; margin-bottom: 1rem;">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <div class="code-help">
+                <strong>📝 Información importante:</strong><br>
+                • Necesitas un código de registro válido<br>
+                • Los códigos son generados por administradores existentes<br>
+                • Cada código es válido por 24 horas<br>
+                • Contacta con un administrador para obtener un código
+            </div>
+
+            <form id="registerForm" method="POST" action="{{ url_for('register_admin') }}">
+                <div class="form-group">
+                    <label for="registration_code">Código de Registro *</label>
+                    <input type="text" id="registration_code" name="registration_code"
+                           class="form-control" required placeholder="Ingresa el código de registro"
+                           pattern="[A-Z0-9]{16}" title="Código de 16 caracteres (letras mayúsculas y números)">
+                </div>
+
+                <div class="form-group">
+                    <label for="nombre_completo">Nombre Completo *</label>
+                    <input type="text" id="nombre_completo" name="nombre_completo"
+                           class="form-control" required placeholder="Tu nombre completo">
+                </div>
+
+                <div class="form-group">
+                    <label for="username">Usuario *</label>
+                    <input type="text" id="username" name="username"
+                           class="form-control" required placeholder="Nombre de usuario"
+                           pattern="[a-zA-Z0-9_]{3,}" title="Mínimo 3 caracteres (solo letras, números y _)">
+                    <small>Solo letras, números y guiones bajos. Mínimo 3 caracteres.</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Correo Electrónico *</label>
+                    <input type="email" id="email" name="email"
+                           class="form-control" required placeholder="tu@email.com">
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Contraseña *</label>
+                    <input type="password" id="password" name="password"
+                           class="form-control" required placeholder="Mínimo 6 caracteres"
+                           minlength="6">
+                    <div id="passwordStrength" class="password-strength"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirm_password">Confirmar Contraseña *</label>
+                    <input type="password" id="confirm_password" name="confirm_password"
+                           class="form-control" required placeholder="Repite tu contraseña">
+                    <div id="passwordMatch" class="password-strength"></div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block" id="submitBtn">
+                    Crear Cuenta
+                </button>
+            </form>
+
+            <div class="text-center mt-3">
+                <p>¿Ya tienes cuenta?</p>
+                <a href="{{ url_for('login') }}" class="btn btn-secondary">
+                    🔐 Iniciar Sesión
+                </a>
+            </div>
+
+            <div class="text-center mt-2">
+                <a href="{{ url_for('publico') }}" class="btn btn-outline">
+                    🌐 Volver al Sistema Público
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Validación de contraseña en tiempo real
+        const passwordInput = document.getElementById('password');
+        const confirmInput = document.getElementById('confirm_password');
+        const strengthText = document.getElementById('passwordStrength');
+        const matchText = document.getElementById('passwordMatch');
+        const submitBtn = document.getElementById('submitBtn');
+
+        function checkPasswordStrength(password) {
+            if (password.length === 0) {
+                return { strength: 0, text: '' };
+            } else if (password.length < 6) {
+                return { strength: 1, text: 'Muy débil - Mínimo 6 caracteres', class: 'strength-weak' };
+            } else if (password.length < 8) {
+                return { strength: 2, text: 'Débil', class: 'strength-weak' };
+            } else if (password.length < 10) {
+                return { strength: 3, text: 'Media', class: 'strength-medium' };
+            } else {
+                return { strength: 4, text: 'Fuerte', class: 'strength-strong' };
+            }
+        }
+
+        function checkPasswordMatch() {
+            const password = passwordInput.value;
+            const confirm = confirmInput.value;
+
+            if (confirm.length === 0) {
+                matchText.textContent = '';
+                matchText.className = 'password-strength';
+            } else if (password === confirm) {
+                matchText.textContent = '✅ Las contraseñas coinciden';
+                matchText.className = 'password-strength strength-strong';
+            } else {
+                matchText.textContent = '❌ Las contraseñas no coinciden';
+                matchText.className = 'password-strength strength-weak';
+            }
+        }
+
+        passwordInput.addEventListener('input', function() {
+            const result = checkPasswordStrength(this.value);
+            strengthText.textContent = result.text;
+            strengthText.className = 'password-strength ' + result.class;
+            checkPasswordMatch();
+        });
+
+        confirmInput.addEventListener('input', checkPasswordMatch);
+
+        // Validación del formulario
+        document.getElementById('registerForm').addEventListener('submit', function(e) {
+            const password = passwordInput.value;
+            const confirm = confirmInput.value;
+
+            if (password !== confirm) {
+                e.preventDefault();
+                alert('Las contraseñas no coinciden');
+                return;
+            }
+
+            if (password.length < 6) {
+                e.preventDefault();
+                alert('La contraseña debe tener al menos 6 caracteres');
+                return;
+            }
+
+            // Mostrar loading
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<div class="spinner"></div> Creando cuenta...';
+        });
+    </script>
+</body>
+</html>

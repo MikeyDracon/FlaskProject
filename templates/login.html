@@ -36,6 +36,12 @@
             color: var(--primary-color);
             margin-bottom: 0.5rem;
         }
+        .public-access {
+            text-align: center;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #eee;
+        }
     </style>
 </head>
 <body>
@@ -46,23 +52,31 @@
                 <p>Sistema de Gestión de Turnos</p>
             </div>
 
-            {% with messages = get_flashed_messages() %}
+            <!-- Mostrar mensajes flash -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
-                    <div class="error-message" style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 1rem;">
-                        {{ messages[0] }}
-                    </div>
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}"
+                             style="background: {% if category == 'error' %}#f8d7da{% else %}#d1ecf1{% endif %};
+                                    color: {% if category == 'error' %}#721c24{% else %}#0c5460{% endif %};
+                                    padding: 10px; border-radius: 4px; margin-bottom: 1rem;">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
                 {% endif %}
             {% endwith %}
 
             <form id="loginForm" method="POST" action="{{ url_for('login') }}">
                 <div class="form-group">
                     <label for="username">Usuario</label>
-                    <input type="text" id="username" name="username" class="form-control" required>
+                    <input type="text" id="username" name="username" class="form-control" required
+                           placeholder="Ingresa tu usuario">
                 </div>
 
                 <div class="form-group">
                     <label for="password">Contraseña</label>
-                    <input type="password" id="password" name="password" class="form-control" required>
+                    <input type="password" id="password" name="password" class="form-control" required
+                           placeholder="Ingresa tu contraseña">
                 </div>
 
                 <div class="captcha-container">
@@ -70,16 +84,29 @@
                     <input type="hidden" name="captcha_answer" value="{{ captcha_answer }}">
                     <div class="form-group">
                         <label for="captcha_input">Ingresa el texto de arriba</label>
-                        <input type="text" id="captcha_input" name="captcha_input" class="form-control" required>
+                        <input type="text" id="captcha_input" name="captcha_input" class="form-control" required
+                               placeholder="Escribe el código CAPTCHA">
                     </div>
                 </div>
 
                 <button type="submit" class="btn btn-primary btn-block">Iniciar Sesión</button>
             </form>
 
-            <div class="text-center mt-3">
-                <a href="{{ url_for('index') }}" class="btn btn-secondary">← Volver al Sistema Público</a>
+            <div class="public-access">
+                <p>¿Eres usuario público?</p>
+                <a href="{{ url_for('publico') }}" class="btn btn-secondary btn-block">
+                    🌐 Ir al Formulario Público
+                </a>
             </div>
+
+            <!-- Credenciales de prueba (solo en desarrollo) -->
+            {% if config.DEBUG %}
+            <div style="margin-top: 1rem; padding: 1rem; background: #fff3cd; border-radius: 4px; font-size: 0.9rem;">
+                <strong>Credenciales de prueba:</strong><br>
+                Usuario: <code>admin</code><br>
+                Contraseña: <code>admin123</code>
+            </div>
+            {% endif %}
         </div>
     </div>
 
@@ -87,7 +114,14 @@
         document.getElementById('loginForm').addEventListener('submit', function(e) {
             const submitBtn = this.querySelector('button[type="submit"]');
             submitBtn.disabled = true;
-            submitBtn.innerHTML = '<div class="spinner"></div>Verificando...';
+            submitBtn.innerHTML = '<div class="spinner"></div> Verificando...';
+        });
+
+        // Recargar CAPTCHA si es difícil de leer
+        document.getElementById('captchaText').addEventListener('click', function() {
+            // En una implementación real, harías una petición para regenerar el CAPTCHA
+            alert('Recargando página para nuevo CAPTCHA...');
+            location.reload();
         });
     </script>
 </body>

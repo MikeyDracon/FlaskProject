@@ -93,6 +93,26 @@
             </div>
         </section>
 
+    <section id="gestion-codigos" class="dashboard-section" style="margin-top: 3rem;">
+    <h2>🔑 Gestión de Códigos de Registro</h2>
+    <div style="background: white; padding: 1.5rem; border-radius: var(--border-radius);">
+        <div class="form-row">
+            <div class="form-group">
+                <button id="btnGenerarCodigo" class="btn btn-success">
+                    🎫 Generar Código de Registro
+                </button>
+            </div>
+            <div class="form-group">
+                <button id="btnVerCodigos" class="btn btn-info">
+                    📋 Ver Códigos Activos
+                </button>
+            </div>
+        </div>
+
+        <div id="codigosResult" style="margin-top: 1rem;"></div>
+    </div>
+</section>
+
         <!-- Búsqueda -->
         <section id="busqueda" class="dashboard-section" style="margin-top: 3rem;">
             <h2>🔍 Búsqueda Avanzada</h2>
@@ -119,3 +139,73 @@
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 </body>
 </html>
+
+// Gestión de códigos de registro
+document.getElementById('btnGenerarCodigo').addEventListener('click', generarCodigoRegistro);
+document.getElementById('btnVerCodigos').addEventListener('click', verCodigosActivos);
+
+async function generarCodigoRegistro() {
+    try {
+        const response = await fetch('/admin/generate-code');
+        const result = await response.json();
+
+        if (result.success) {
+            document.getElementById('codigosResult').innerHTML = `
+                <div class="success-message">
+                    <strong>✅ ${result.message}</strong><br>
+                    <code style="font-size: 1.2rem; background: #f8f9fa; padding: 10px; display: block; margin: 10px 0;">
+                        ${result.code}
+                    </code>
+                    <p>Comparte este código con quien necesite registrarse. Válido por 24 horas.</p>
+                </div>
+            `;
+        } else {
+            document.getElementById('codigosResult').innerHTML = `
+                <div class="error-message">❌ Error: ${result.error}</div>
+            `;
+        }
+    } catch (error) {
+        document.getElementById('codigosResult').innerHTML = `
+            <div class="error-message">❌ Error de conexión</div>
+        `;
+    }
+}
+
+async function verCodigosActivos() {
+    try {
+        const response = await fetch('/admin/active-codes');
+        const result = await response.json();
+
+        if (result.success) {
+            if (result.active_codes === 0) {
+                document.getElementById('codigosResult').innerHTML = `
+                    <div class="info-message">No hay códigos activos</div>
+                `;
+            } else {
+                let html = `<div class="success-message"><strong>📋 Códigos Activos: ${result.active_codes}</strong><br>`;
+
+                for (const [code, data] of Object.entries(result.codes)) {
+                    const expires = new Date(data.expires_at).toLocaleString();
+                    html += `
+                        <div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                            <strong>Código:</strong> <code>${code}</code><br>
+                            <strong>Expira:</strong> ${expires}<br>
+                            <strong>Usos restantes:</strong> ${data.max_uses}
+                        </div>
+                    `;
+                }
+
+                html += `</div>`;
+                document.getElementById('codigosResult').innerHTML = html;
+            }
+        } else {
+            document.getElementById('codigosResult').innerHTML = `
+                <div class="error-message">❌ Error: ${result.error}</div>
+            `;
+        }
+    } catch (error) {
+        document.getElementById('codigosResult').innerHTML = `
+            <div class="error-message">❌ Error de conexión</div>
+        `;
+    }
+}
