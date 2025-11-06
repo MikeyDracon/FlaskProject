@@ -1,12 +1,40 @@
+// static/js/dashboard.js - VERSIÓN REACTIVA
+
 class DashboardApp {
     constructor() {
+        this.estatusChart = null;
+        this.municipiosChart = null;
+        this.statsElements = {
+            'total_turnos': document.getElementById('total-turnos'),
+            'pendientes': document.getElementById('pendientes'),
+            'resueltos': document.getElementById('resueltos'),
+            'total_municipios': document.getElementById('total-municipios')
+        };
         this.init();
     }
 
     init() {
+        this.bindEvents();
         this.loadEstadisticas();
         this.loadTurnos();
-        this.bindEvents();
+
+        // Iniciar actualización automática cada 5 segundos
+        this.startAutoRefresh();
+    }
+
+    startAutoRefresh() {
+        // Actualizar estadísticas cada 5 segundos
+        setInterval(() => {
+            this.updateStats();
+            this.updateCharts();
+        }, 5000);
+
+        // Escuchar eventos de actualización
+        document.addEventListener('turnoUpdated', () => {
+            this.updateStats();
+            this.updateCharts();
+            this.loadTurnos(); // También actualizar la lista
+        });
     }
 
     bindEvents() {
@@ -23,7 +51,85 @@ class DashboardApp {
         document.getElementById('searchNombre').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.buscarTurnos();
         });
+
+        // Gestión de códigos
+        document.getElementById('btnGenerarCodigo').addEventListener('click', this.generarCodigoRegistro);
+        document.getElementById('btnVerCodigos').addEventListener('click', this.verCodigosActivos);
     }
+
+    // ========== ACTUALIZACIÓN REACTIVA ==========
+
+    async updateStats() {
+        try {
+            const response = await fetch('/api/admin/estadisticas');
+            const data = await response.json();
+
+            // Calcular totales
+            const totalTurnos = data.estatus.reduce((sum, item) => sum + item.cantidad, 0);
+            const pendientes = data.estatus.find(e => e.estado === 'pendiente')?.cantidad || 0;
+            const resueltos = data.estatus.find(e => e.estado === 'resuelto')?.cantidad || 0;
+            const totalMunicipios = data.municipios.length;
+
+            this.updateElement('total_turnos', totalTurnos);
+            this.updateElement('pendientes', pendientes);
+            this.updateElement('resueltos', resueltos);
+            this.updateElement('total_municipios', totalMunicipios);
+
+        } catch (error) {
+            console.error('Error actualizando estadísticas:', error);
+        }
+    }
+
+    async updateCharts() {
+        try {
+            const response = await fetch('/api/admin/estadisticas');
+            const data = await response.json();
+
+            // Actualizar gráficas
+            if (this.estatusChart && this.municipiosChart) {
+                this.updateChartData(this.estatusChart, data.estatus);
+                this.updateChartData(this.municipiosChart, data.municipios);
+            }
+        } catch (error) {
+            console.error('Error actualizando gráficas:', error);
+        }
+    }
+
+    updateElement(elementId, value) {
+        if (this.statsElements[elementId]) {
+            const element = this.statsElements[elementId];
+            const oldValue = parseInt(element.textContent) || 0;
+            const newValue = value;
+
+            // Solo actualizar si cambió el valor
+            if (oldValue !== newValue) {
+                element.textContent = newValue;
+
+                // Efecto visual de actualización
+                element.classList.add('updating');
+                setTimeout(() => {
+                    element.classList.remove('updating');
+                }, 500);
+            }
+        }
+    }
+
+    updateChartData(chart, newData) {
+        if (!chart || !newData) return;
+
+        // Actualizar datos del chart
+        if (chart.config.type === 'doughnut') {
+            chart.data.datasets[0].data = newData.map(item => item.cantidad);
+            chart.data.labels = newData.map(item => this.capitalize(item.estado));
+        } else if (chart.config.type === 'bar') {
+            chart.data.datasets[0].data = newData.map(item => item.cantidad);
+            chart.data.labels = newData.map(item => this.capitalize(item.municipio));
+        }
+
+        chart.update('none'); // Actualizar sin animación
+    }
+
+    // ========== FUNCIONES EXISTENTES (MODIFICADAS) ==========
 
     async loadEstadisticas() {
         try {
@@ -32,6 +138,7 @@ class DashboardApp {
 
             this.renderEstatusChart(data.estatus);
             this.renderMunicipiosChart(data.municipios);
+            this.updateStats(); // Actualizar contadores también
         } catch (error) {
             console.error('Error cargando estadísticas:', error);
         }
@@ -46,7 +153,12 @@ class DashboardApp {
             'cancelado': '#e74c3c'
         };
 
-        new Chart(ctx, {
+        // Destruir chart existente
+        if (this.estatusChart) {
+            this.estatusChart.destroy();
+        }
+
+        this.estatusChart = new Chart(ctx, {
             type: 'doughnut',
             data: {
                 labels: estatusData.map(item => this.capitalize(item.estado)),
@@ -70,7 +182,12 @@ class DashboardApp {
     renderMunicipiosChart(municipiosData) {
         const ctx = document.getElementById('municipiosChart').getContext('2d');
 
-        new Chart(ctx, {
+        // Destruir chart existente
+        if (this.municipiosChart) {
+            this.municipiosChart.destroy();
+        }
+
+        this.municipiosChart = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: municipiosData.map(item => this.capitalize(item.municipio)),
@@ -148,6 +265,38 @@ class DashboardApp {
         `).join('');
     }
 
+    async cambiarEstado(turnoId, nuevoEstado) {
+        try {
+            const response = await fetch(`/api/admin/turnos/${turnoId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ estado: nuevoEstado })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                this.showNotification('Estado actualizado correctamente', 'success');
+
+                // Disparar evento para actualización reactiva
+                const event = new CustomEvent('turnoUpdated', {
+                    detail: { turnoId, nuevoEstado }
+                });
+                document.dispatchEvent(event);
+
+            } else {
+                this.showNotification('Error al actualizar estado', 'error');
+            }
+        } catch (error) {
+            console.error('Error cambiando estado:', error);
+            this.showNotification('Error de conexión', 'error');
+        }
+    }
+
+    // ========== FUNCIONES DE BÚSQUEDA (MANTENER EXISTENTES) ==========
+
     async buscarTurnos() {
         try {
             const curp = document.getElementById('searchCURP').value;
@@ -198,30 +347,75 @@ class DashboardApp {
         `;
     }
 
-    async cambiarEstado(turnoId, nuevoEstado) {
-        try {
-            const response = await fetch(`/api/admin/turnos/${turnoId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ estado: nuevoEstado })
-            });
+    // ========== FUNCIONES DE GESTIÓN DE CÓDIGOS ==========
 
+    async generarCodigoRegistro() {
+        try {
+            const response = await fetch('/admin/generate-code');
             const result = await response.json();
 
             if (result.success) {
-                this.showNotification('Estado actualizado correctamente', 'success');
-                this.loadTurnos();
-                this.loadEstadisticas(); // Actualizar gráficas
+                document.getElementById('codigosResult').innerHTML = `
+                    <div class="success-message">
+                        <strong>✅ ${result.message}</strong><br>
+                        <code style="font-size: 1.2rem; background: #f8f9fa; padding: 10px; display: block; margin: 10px 0;">
+                            ${result.code}
+                        </code>
+                        <p>Comparte este código con quien necesite registrarse. Válido por 24 horas.</p>
+                    </div>
+                `;
             } else {
-                this.showNotification('Error al actualizar estado', 'error');
+                document.getElementById('codigosResult').innerHTML = `
+                    <div class="error-message">❌ Error: ${result.error}</div>
+                `;
             }
         } catch (error) {
-            console.error('Error cambiando estado:', error);
-            this.showNotification('Error de conexión', 'error');
+            document.getElementById('codigosResult').innerHTML = `
+                <div class="error-message">❌ Error de conexión</div>
+            `;
         }
     }
+
+    async verCodigosActivos() {
+        try {
+            const response = await fetch('/admin/active-codes');
+            const result = await response.json();
+
+            if (result.success) {
+                if (result.active_codes === 0) {
+                    document.getElementById('codigosResult').innerHTML = `
+                        <div class="info-message">No hay códigos activos</div>
+                    `;
+                } else {
+                    let html = `<div class="success-message"><strong>📋 Códigos Activos: ${result.active_codes}</strong><br>`;
+
+                    for (const [code, data] of Object.entries(result.codes)) {
+                        const expires = new Date(data.expires_at).toLocaleString();
+                        html += `
+                            <div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                                <strong>Código:</strong> <code>${code}</code><br>
+                                <strong>Expira:</strong> ${expires}<br>
+                                <strong>Usos restantes:</strong> ${data.max_uses}
+                            </div>
+                        `;
+                    }
+
+                    html += `</div>`;
+                    document.getElementById('codigosResult').innerHTML = html;
+                }
+            } else {
+                document.getElementById('codigosResult').innerHTML = `
+                    <div class="error-message">❌ Error: ${result.error}</div>
+                `;
+            }
+        } catch (error) {
+            document.getElementById('codigosResult').innerHTML = `
+                <div class="error-message">❌ Error de conexión</div>
+            `;
+        }
+    }
+
+    // ========== FUNCIONES AUXILIARES ==========
 
     getEstadoColor(estado) {
         const colores = {
@@ -238,7 +432,6 @@ class DashboardApp {
     }
 
     showNotification(message, type = 'info') {
-        // Reutilizar la función de notificación existente o crear una nueva
         const toast = document.createElement('div');
         toast.style.cssText = `
             position: fixed;
