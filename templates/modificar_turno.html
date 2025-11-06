@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modificar Turno - Sistema de Turnos</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .modification-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        .modification-card {
+            background: white;
+            padding: 2rem;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            width: 100%;
+            max-width: 600px;
+        }
+        .search-section, .form-section {
+            margin-bottom: 2rem;
+        }
+        .hidden {
+            display: none;
+        }
+        .turno-info {
+            background: #e8f4fd;
+            padding: 1rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 1rem;
+        }
+        .info-item {
+            margin: 0.5rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="modification-container">
+        <div class="modification-card">
+            <div class="header text-center">
+                <h1>✏️ Modificar Turno</h1>
+                <p>Ingresa tu CURP y número de turno para modificar tu solicitud</p>
+            </div>
+
+            <!-- Sección de búsqueda -->
+            <div class="search-section" id="searchSection">
+                <form id="searchForm">
+                    <div class="form-group">
+                        <label for="curp">CURP *</label>
+                        <input type="text" id="curp" name="curp" class="form-control"
+                               placeholder="Ingresa tu CURP" required
+                               pattern="[A-Z]{4}[0-9]{6}[HM][A-Z]{5}[0-9A-Z]{2}"
+                               title="Formato de CURP: AAAA000000HHMMMM00">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="numero_turno">Número de Turno *</label>
+                        <input type="text" id="numero_turno" name="numero_turno" class="form-control"
+                               placeholder="Ej: AGUASCALIENTES-0001" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-block" id="btnBuscar">
+                        🔍 Buscar Turno
+                    </button>
+                </form>
+
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('publico') }}" class="btn btn-secondary">
+                        📝 Generar Nuevo Turno
+                    </a>
+                </div>
+            </div>
+
+            <!-- Información del turno encontrado -->
+            <div id="turnoInfo" class="hidden">
+                <div class="turno-info">
+                    <h4>📋 Información del Turno</h4>
+                    <div class="info-item"><strong>Número:</strong> <span id="infoNumeroTurno"></span></div>
+                    <div class="info-item"><strong>Fecha de creación:</strong> <span id="infoFecha"></span></div>
+                    <div class="info-item"><strong>Estado:</strong> <span style="color: #f39c12;">⏳ Pendiente</span></div>
+                </div>
+            </div>
+
+            <!-- Formulario de modificación -->
+            <div class="form-section hidden" id="formSection">
+                <form id="modificationForm" novalidate>
+                    <input type="hidden" id="modCurp" name="curp">
+                    <input type="hidden" id="modNumeroTurno" name="numero_turno">
+
+                    <h3>Datos Personales</h3>
+
+                    <div class="form-group">
+                        <label for="modNombreCompleto">Nombre Completo *</label>
+                        <input type="text" id="modNombreCompleto" name="nombreCompleto" class="form-control" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="modCurpDisplay">CURP *</label>
+                        <input type="text" id="modCurpDisplay" class="form-control" disabled style="background: #f8f9fa;">
+                        <small class="text-muted">La CURP no se puede modificar</small>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="modNombre">Nombre(s) *</label>
+                            <input type="text" id="modNombre" name="nombre" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="modPaterno">Apellido Paterno *</label>
+                            <input type="text" id="modPaterno" name="paterno" class="form-control" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="modMaterno">Apellido Materno</label>
+                        <input type="text" id="modMaterno" name="materno" class="form-control">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="modTelefono">Teléfono Fijo</label>
+                            <input type="tel" id="modTelefono" name="telefono" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label for="modCelular">Celular *</label>
+                            <input type="tel" id="modCelular" name="celular" class="form-control" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="modCorreo">Correo Electrónico *</label>
+                        <input type="email" id="modCorreo" name="correo" class="form-control" required>
+                    </div>
+
+                    <h3>Información Académica</h3>
+
+                    <div class="form-group">
+                        <label for="modNivel">Nivel Educativo *</label>
+                        <select id="modNivel" name="nivel" class="form-control" required>
+                            <option value="">Selecciona un nivel</option>
+                            <option value="preescolar">Preescolar</option>
+                            <option value="primaria">Primaria</option>
+                            <option value="secundaria">Secundaria</option>
+                            <option value="bachillerato">Bachillerato</option>
+                            <option value="licenciatura">Licenciatura</option>
+                            <option value="posgrado">Posgrado</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="modMunicipio">Municipio *</label>
+                        <select id="modMunicipio" name="municipio" class="form-control" required>
+                            <option value="">Selecciona un municipio</option>
+                            <option value="aguascalientes">Aguascalientes</option>
+                            <option value="zacatecas">Zacatecas</option>
+                            <option value="jalisco">Jalisco</option>
+                            <option value="guanajuato">Guanajuato</option>
+                            <option value="san-luis-potosi">San Luis Potosí</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="modAsunto">Asunto *</label>
+                        <select id="modAsunto" name="asunto" class="form-control" required>
+                            <option value="">Selecciona un asunto</option>
+                            <option value="inscripcion">Inscripción</option>
+                            <option value="reinscripcion">Reinscripción</option>
+                            <option value="certificacion">Certificación</option>
+                            <option value="tramite-documentos">Trámite de documentos</option>
+                            <option value="informacion">Información general</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <button type="submit" class="btn btn-success btn-block">
+                            💾 Guardar Cambios
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-block" onclick="resetForm()">
+                            🔄 Cancelar
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Resultado de la modificación -->
+            <div id="resultSection" class="hidden">
+                <div class="success-message text-center">
+                    <h4>✅ Turno Actualizado</h4>
+                    <p>Tu turno ha sido modificado exitosamente.</p>
+                    <a href="#" id="pdfDownload" class="btn btn-primary btn-block mt-2">
+                        📄 Descargar Nuevo Comprobante
+                    </a>
+                    <button onclick="resetForm()" class="btn btn-secondary btn-block mt-2">
+                        ✏️ Modificar Otro Turno
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class TurnoModification {
+            constructor() {
+                this.searchForm = document.getElementById('searchForm');
+                this.modificationForm = document.getElementById('modificationForm');
+                this.init();
+            }
+
+            init() {
+                this.bindEvents();
+            }
+
+            bindEvents() {
+                this.searchForm.addEventListener('submit', (e) => this.handleSearch(e));
+                this.modificationForm.addEventListener('submit', (e) => this.handleModification(e));
+            }
+
+            async handleSearch(e) {
+                e.preventDefault();
+
+                const btnBuscar = document.getElementById('btnBuscar');
+                btnBuscar.disabled = true;
+                btnBuscar.innerHTML = '<div class="spinner"></div> Buscando...';
+
+                try {
+                    const formData = new FormData(this.searchForm);
+                    const response = await fetch('/publico/buscar_turno', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        this.showTurnoForm(result.turno);
+                    } else {
+                        this.showNotification(result.error, 'error');
+                    }
+                } catch (error) {
+                    this.showNotification('Error de conexión', 'error');
+                } finally {
+                    btnBuscar.disabled = false;
+                    btnBuscar.textContent = '🔍 Buscar Turno';
+                }
+            }
+
+            showTurnoForm(turno) {
+                // Llenar información del turno
+                document.getElementById('infoNumeroTurno').textContent = turno.numero_turno;
+                document.getElementById('infoFecha').textContent = turno.fecha_creacion;
+                document.getElementById('turnoInfo').classList.remove('hidden');
+
+                // Llenar formulario
+                document.getElementById('modCurp').value = turno.curp;
+                document.getElementById('modNumeroTurno').value = turno.numero_turno;
+                document.getElementById('modCurpDisplay').value = turno.curp;
+                document.getElementById('modNombreCompleto').value = turno.nombre_completo;
+                document.getElementById('modNombre').value = turno.nombre;
+                document.getElementById('modPaterno').value = turno.paterno;
+                document.getElementById('modMaterno').value = turno.materno;
+                document.getElementById('modTelefono').value = turno.telefono;
+                document.getElementById('modCelular').value = turno.celular;
+                document.getElementById('modCorreo').value = turno.correo;
+                document.getElementById('modNivel').value = turno.nivel;
+                document.getElementById('modMunicipio').value = turno.municipio;
+                document.getElementById('modAsunto').value = turno.asunto;
+
+                // Mostrar sección del formulario
+                document.getElementById('formSection').classList.remove('hidden');
+                document.getElementById('searchSection').classList.add('hidden');
+            }
+
+            async handleModification(e) {
+                e.preventDefault();
+
+                const submitBtn = this.modificationForm.querySelector('button[type="submit"]');
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<div class="spinner"></div> Guardando...';
+
+                try {
+                    const formData = new FormData(this.modificationForm);
+                    const response = await fetch('/publico/actualizar_turno', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        this.showSuccess(result);
+                    } else {
+                        if (result.errors) {
+                            this.handleErrors(result.errors);
+                        } else {
+                            this.showNotification(result.error, 'error');
+                        }
+                    }
+                } catch (error) {
+                    this.showNotification('Error de conexión', 'error');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '💾 Guardar Cambios';
+                }
+            }
+
+            showSuccess(result) {
+                document.getElementById('formSection').classList.add('hidden');
+                document.getElementById('resultSection').classList.remove('hidden');
+                document.getElementById('pdfDownload').href = result.pdf_url;
+
+                this.showNotification('Turno actualizado correctamente', 'success');
+            }
+
+            handleErrors(errors) {
+                Object.keys(errors).forEach(fieldName => {
+                    const field = this.modificationForm.querySelector(`[name="${fieldName}"]`);
+                    if (field) {
+                        field.classList.add('error');
+                        const errorElement = field.parentNode.querySelector('.error-message') || document.createElement('span');
+                        errorElement.className = 'error-message';
+                        errorElement.textContent = errors[fieldName];
+                        if (!field.parentNode.querySelector('.error-message')) {
+                            field.parentNode.appendChild(errorElement);
+                        }
+                    }
+                });
+            }
+
+            showNotification(message, type = 'info') {
+                const toast = document.createElement('div');
+                toast.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    padding: 12px 20px;
+                    border-radius: 4px;
+                    color: white;
+                    z-index: 10000;
+                    animation: slideInRight 0.3s ease;
+                    background: ${type === 'success' ? '#27ae60' : type === 'error' ? '#e74c3c' : '#3498db'};
+                `;
+                toast.textContent = message;
+                document.body.appendChild(toast);
+
+                setTimeout(() => {
+                    toast.style.animation = 'slideOutRight 0.3s ease';
+                    setTimeout(() => toast.remove(), 300);
+                }, 5000);
+            }
+        }
+
+        function resetForm() {
+            document.getElementById('searchSection').classList.remove('hidden');
+            document.getElementById('turnoInfo').classList.add('hidden');
+            document.getElementById('formSection').classList.add('hidden');
+            document.getElementById('resultSection').classList.add('hidden');
+            document.getElementById('searchForm').reset();
+            document.getElementById('modificationForm').reset();
+        }
+
+        // Inicializar cuando el DOM esté listo
+        document.addEventListener('DOMContentLoaded', () => {
+            window.turnoModification = new TurnoModification();
+        });
+    </script>
+</body>
+</html>

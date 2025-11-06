@@ -426,6 +426,15 @@ def publico():
                          is_logged_in=is_logged_in,
                          admin_username=admin_username)
 
+@app.route('/publico/modificar')
+def modificar_turno_form():
+    """Formulario para modificar turno (público)"""
+    is_logged_in = session_manager.is_logged_in()
+    admin_username = session_manager.get_admin_username() if is_logged_in else None
+    return render_template('modificar_turno.html',
+                         is_logged_in=is_logged_in,
+                         admin_username=admin_username)
+
 @app.route('/admin')
 def admin_redirect():
     """Redirección para /admin"""
@@ -554,6 +563,124 @@ def descargar_pdf(filename):
     else:
         return "Archivo no encontrado", 404
 
+
+# =============================================================================
+# RUTAS PARA MODIFICACIÓN PÚBLICA DE TURNOS
+# =============================================================================
+@app.route('/publico/buscar_turno', methods=['POST'])
+def buscar_turno_publico():
+    """Buscar turno por CURP y número para modificación"""
+    try:
+        curp = request.form.get('curp', '').strip().upper()
+        numero_turno = request.form.get('numero_turno', '').strip().upper()
+
+        if not curp or not numero_turno:
+            return jsonify({'success': False, 'error': 'CURP y número de turno son obligatorios'})
+
+        # Buscar turno con el usuario asociado
+        turno = Turno.query.filter_by(numero_turno=numero_turno).join(Usuario).filter(Usuario.curp == curp).first()
+
+        if not turno:
+            return jsonify({'success': False, 'error': 'No se encontró el turno con los datos proporcionados'})
+
+        # Solo permitir modificación si está pendiente
+        if turno.estado != 'pendiente':
+            return jsonify({
+                'success': False,
+                'error': f'No se puede modificar un turno con estado "{turno.estado}". Solo se permiten turnos pendientes.'
+            })
+
+        # Preparar datos para el formulario
+        datos_turno = {
+            'numero_turno': turno.numero_turno,
+            'curp': turno.usuario.curp,
+            'nombre_completo': turno.usuario.nombre_completo,
+            'nombre': turno.usuario.nombre,
+            'paterno': turno.usuario.paterno,
+            'materno': turno.usuario.materno or '',
+            'telefono': turno.usuario.telefono or '',
+            'celular': turno.usuario.celular,
+            'correo': turno.usuario.correo,
+            'nivel': turno.nivel,
+            'municipio': turno.municipio,
+            'asunto': turno.asunto,
+            'fecha_creacion': turno.fecha_creacion.strftime('%d/%m/%Y %H:%M')
+        }
+
+        return jsonify({'success': True, 'turno': datos_turno})
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Error en la búsqueda: {str(e)}'})
+
+
+@app.route('/publico/actualizar_turno', methods=['POST'])
+def actualizar_turno_publico():
+    """Actualizar turno desde la interfaz pública"""
+    try:
+        data = request.form
+        curp = data.get('curp', '').strip().upper()
+        numero_turno = data.get('numero_turno', '').strip().upper()
+
+        # Buscar turno y usuario
+        turno = Turno.query.filter_by(numero_turno=numero_turno).join(Usuario).filter(Usuario.curp == curp).first()
+
+        if not turno:
+            return jsonify({'success': False, 'error': 'Turno no encontrado'})
+
+        if turno.estado != 'pendiente':
+            return jsonify({'success': False, 'error': 'Solo se pueden modificar turnos pendientes'})
+
+        # Validar datos
+        datos_actualizados = {
+            'nombre_completo': data.get('nombreCompleto', '').strip(),
+            'curp': curp,
+            'nombre': data.get('nombre', '').strip(),
+            'paterno': data.get('paterno', '').strip(),
+            'materno': data.get('materno', '').strip(),
+            'telefono': data.get('telefono', '').strip(),
+            'celular': data.get('celular', '').strip(),
+            'correo': data.get('correo', '').strip().lower(),
+            'nivel': data.get('nivel', '').strip(),
+            'municipio': data.get('municipio', '').strip(),
+            'asunto': data.get('asunto', '').strip()
+        }
+
+        # Validaciones
+        errores = validar_datos(datos_actualizados)
+        if errores:
+            return jsonify({'success': False, 'errors': errores})
+
+        # Actualizar usuario
+        usuario = turno.usuario
+        usuario.nombre_completo = datos_actualizados['nombre_completo']
+        usuario.nombre = datos_actualizados['nombre']
+        usuario.paterno = datos_actualizados['paterno']
+        usuario.materno = datos_actualizados['materno']
+        usuario.telefono = datos_actualizados['telefono']
+        usuario.celular = datos_actualizados['celular']
+        usuario.correo = datos_actualizados['correo']
+        usuario.fecha_actualizacion = datetime.utcnow()
+
+        # Actualizar turno (solo algunos campos)
+        turno.nivel = datos_actualizados['nivel']
+        turno.municipio = datos_actualizados['municipio']
+        turno.asunto = datos_actualizados['asunto']
+
+        db.session.commit()
+
+        # Generar nuevo PDF
+        pdf_path = generar_pdf_comprobante(datos_actualizados, numero_turno)
+
+        return jsonify({
+            'success': True,
+            'message': 'Turno actualizado correctamente',
+            'pdf_url': f'/descargar_pdf/{os.path.basename(pdf_path)}',
+            'numero_turno': numero_turno
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': f'Error al actualizar: {str(e)}'})
 
 # =============================================================================
 # RUTAS DE AUTENTICACIÓN

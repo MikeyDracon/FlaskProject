@@ -17,7 +17,6 @@
             </div>
             <div>
                 <a href="{{ url_for('logout') }}" class="btn btn-warning">🚪 Cerrar Sesión</a>
-                <a href="{{ url_for('index') }}" class="btn btn-secondary">🌐 Vista Pública</a>
             </div>
         </header>
 
@@ -37,19 +36,19 @@
             <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
                 <div class="stat-card" style="background: white; padding: 1.5rem; border-radius: var(--border-radius); text-align: center;">
                     <h3>Total Turnos</h3>
-                    <div class="stat-number" style="font-size: 2rem; font-weight: bold; color: var(--secondary-color);">{{ stats.total_turnos }}</div>
+                    <div class="stat-number" id="total-turnos" style="font-size: 2rem; font-weight: bold; color: var(--secondary-color);">{{ stats.total_turnos }}</div>
                 </div>
                 <div class="stat-card" style="background: white; padding: 1.5rem; border-radius: var(--border-radius); text-align: center;">
                     <h3>Pendientes</h3>
-                    <div class="stat-number" style="font-size: 2rem; font-weight: bold; color: var(--warning-color);">{{ stats.pendientes }}</div>
+                    <div class="stat-number" id="pendientes" style="font-size: 2rem; font-weight: bold; color: var(--warning-color);">{{ stats.pendientes }}</div>
                 </div>
                 <div class="stat-card" style="background: white; padding: 1.5rem; border-radius: var(--border-radius); text-align: center;">
                     <h3>Resueltos</h3>
-                    <div class="stat-number" style="font-size: 2rem; font-weight: bold; color: var(--success-color);">{{ stats.resueltos }}</div>
+                    <div class="stat-number" id="resueltos" style="font-size: 2rem; font-weight: bold; color: var(--success-color);">{{ stats.resueltos }}</div>
                 </div>
                 <div class="stat-card" style="background: white; padding: 1.5rem; border-radius: var(--border-radius); text-align: center;">
                     <h3>Por Municipio</h3>
-                    <div class="stat-number" style="font-size: 2rem; font-weight: bold; color: var(--primary-color);">{{ stats.total_municipios }}</div>
+                    <div class="stat-number" id="total-municipios" style="font-size: 2rem; font-weight: bold; color: var(--primary-color);">{{ stats.total_municipios }}</div>
                 </div>
             </div>
 
@@ -136,11 +135,8 @@
         </section>
     </div>
 
-    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
-</body>
-</html>
-
-// Gestión de códigos de registro
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}">
+        // Gestión de códigos de registro
 document.getElementById('btnGenerarCodigo').addEventListener('click', generarCodigoRegistro);
 document.getElementById('btnVerCodigos').addEventListener('click', verCodigosActivos);
 
@@ -209,3 +205,6 @@ async function verCodigosActivos() {
         `;
     }
 }
+    </script>
+</body>
+</html>
